@@ -18,10 +18,8 @@ A titre indicatif, le temps à consacrer à ce TP hors cours est de deux à quat
 Insérer ci-après le nom de chaque personne du groupe. Remplacer les noms ci-après, Nom en majuscule (=family name, UPPER CASE), Prénom en minuscule (first name, lower case).
 
 ```{r}
-#1. DURAND Victor
-#2. DUPONT Annette
-#3. DUCHEMIN Pierre
-#4. DULAC Isis
+#1. DECROUX Paul
+#2. PHALIPPOU DOnatien
 ```
 
 L'ordre n'a pas d'importance, mais la personne en position 1 sera celle qui remettra le TP sur Campus. Merci de n'opérer qu'une seule remise par groupe! Merci de nommer vos fichiers en faisant apparaître le premier nom, par exemple ici: `TPXXX_GroupeDURAND.Rmd`, `TPXXX_GroupeDURAND.html`
@@ -30,7 +28,7 @@ ATTENTION! seul les noms inscrits dans le documents seront utilisés, *aucun ajo
 
 Merci de remplir le champs suivant: Nous certifions que notre groupe ne comportait que les personnes dont les noms sont indiqués ci-dessus, et qu'aucune personne n'a été oubliée, soit un total de:
 ```{r}
-# quatre personnes (4)
+# deux personnes (2)
 # Nous nous engageons à ne pas réclamer l'ajout d'une autre personne après la remise du TP
 ```
 
@@ -98,3 +96,241 @@ message(sum(colnames(LectureDeMonFichier)==c("X1", "X2", "X3", "X4", "X5", "X6",
 Voilà, c'est à vous, vous n'avez plus qu'à faire vos prédictions! en remplaçant la ligne `Y = Apredire$X1 + mean(Observations$Y)` bien sûr!
 
 Bon courage!
+
+
+```{r}
+# Chargement des bibliothèques nécessaires
+library(ggplot2)
+library(GGally)
+library(dplyr)
+library(corrplot)
+
+# Chargement des données
+observations <- read.csv('defi_observations.csv')
+apredire <- read.csv('defi_apredire.csv')
+
+# Affichage des premières lignes des données
+head(observations)
+head(apredire)
+
+# Statistiques descriptives
+summary(observations)
+
+# Matrice de corrélation
+cor_matrix <- cor(observations)
+print(cor_matrix)
+
+# Visualisation de la matrice de corrélation
+corrplot(cor_matrix, method = "circle")
+
+# Pairplot pour une vue d'ensemble des relations entre variables
+ggpairs(observations[, c("X1", "X2", "X3","X4", "X5", "X6","X7", "Y")])
+
+```
+Dans notre analyse exploratoire des données d'observation, nous avons constaté que les variables `X1` à `X7` sont réparties de manière relativement uniforme, avec des moyennes proches de 0.5 et des écarts types autour de 0.28. La variable cible `Y` présente une plus grande variabilité avec une moyenne d'environ 48.93 et un écart type de 6.30. La matrice de corrélation a révélé des corrélations modérées entre `Y` et certaines variables explicatives : `X1` montre une corrélation positive (0.41), tandis que `X2` et `X6` présentent des corrélations négatives significatives (environ -0.64 et -0.63). Ces observations suggèrent que `X1`, `X2`, et `X6` pourraient jouer un rôle important dans la prédiction de `Y`. Les visualisations, notamment la heatmap de corrélation et le pairplot, ont confirmé ces tendances et ont aidé à mieux comprendre les relations entre les variables. Ces insights sont cruciaux pour orienter notre approche de modélisation par krigeage, en mettant l'accent sur les variables les plus pertinentes.
+
+verifions s'il faut faire un prétraitement:
+```{r}
+
+# Vérification des valeurs manquantes
+check_missing_values <- function(data) {
+  sum(is.na(data))
+}
+
+# Vérification des anomalies potentielles
+check_anomalies <- function(data) {
+  summary(data)
+}
+
+# Affichage des résultats de la vérification
+print("Vérification des valeurs manquantes dans 'observations':")
+print(check_missing_values(observations))
+
+print("Vérification des valeurs manquantes dans 'apredire':")
+print(check_missing_values(apredire))
+
+print("Résumé statistique pour détecter les anomalies dans 'observations':")
+print(check_anomalies(observations))
+
+print("Résumé statistique pour détecter les anomalies dans 'apredire':")
+print(check_anomalies(apredire))
+
+# Vérification de la distribution des données
+# Histogrammes pour chaque variable dans 'observations'
+print("Histogrammes pour les variables dans 'observations':")
+hist_vars <- names(observations)
+for (var in hist_vars) {
+  print(paste("Histogramme de", var))
+  hist(observations[[var]], main=paste("Distribution de", var), xlab=var)
+}
+
+```
+
+Les données des ensembles `defi_observations.csv` et `defi_apredire.csv` ne présentent aucune valeur manquante, éliminant ainsi le besoin de traitement pour les données manquantes. De plus, les valeurs des variables `X1` à `X7` sont comprises entre 0 et 1 dans les deux jeux de données, sans anomalies telles que des valeurs négatives ou extrêmement élevées. Les distributions des variables sont cohérentes, sans signes d'erreurs de saisie ou d'autres problèmes. En conséquence, aucun prétraitement majeur n'est nécessaire, et les données sont prêtes à être utilisées dans des modèles de prédiction, y compris pour le krigeage.
+
+```{r}
+install.packages("reticulate")
+library(reticulate)
+
+```
+```{r}
+py_install('scikit-learn')
+```
+```{r}
+py_install('pandas')
+```
+```{r}
+py_install('matplotlib')
+```
+
+```{python}
+import pandas as pd
+
+# Chemins vers les fichiers
+file_observations = 'defi_observations.csv'
+file_apredire = 'defi_apredire.csv'
+
+# Chargement des données
+observations = pd.read_csv(file_observations)
+apredire = pd.read_csv(file_apredire)
+
+observations.head(), apredire.head()
+
+```
+
+```{python}
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+
+# Séparation des caractéristiques et de la cible
+X = observations.drop('Y', axis=1)
+y = observations['Y']
+
+# Séparation des données en ensembles d'entraînement et de test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Configuration du modèle de krigeage (Gaussian Process Regressor)
+kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
+gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, random_state=42)
+
+# Pipeline pour standardiser les données et appliquer le krigeage
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('gpr', gpr)
+])
+# Entraînement du modèle
+pipeline.fit(X_train, y_train)
+
+# Évaluation du modèle
+score = pipeline.score(X_test, y_test)
+score
+```
+
+
+```{python}
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Prédiction sur l'ensemble de test
+y_pred = pipeline.predict(X_test)
+
+# Calcul de l'erreur absolue
+errors = np.abs(y_test - y_pred)
+
+# Affichage des prédictions vs valeurs réelles
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.scatter(y_test, y_pred, alpha=0.5)
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'k--', lw=2)  # Ligne de référence parfaite
+plt.xlabel('Valeurs Réelles')
+plt.ylabel('Prédictions')
+plt.title('Valeurs Réelles vs Prédictions')
+
+# Affichage de l'erreur de prédiction
+plt.subplot(1, 2, 2)
+plt.scatter(y_test, errors, alpha=0.5)
+plt.xlabel('Valeurs Réelles')
+plt.ylabel('Erreur Absolue')
+plt.title('Erreur de Prédiction')
+plt.show()
+
+```
+
+
+```{python}
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.linear_model import LassoCV
+
+
+# Configuration et entraînement du modèle Lasso avec validation croisée
+lasso = LassoCV(cv=5, eps=0.5, n_alphas=1000, random_state=42).fit(X, y)
+
+# Affichage du meilleur alpha trouvé
+print("Meilleur alpha trouvé par validation croisée:", lasso.alpha_)
+
+# Obtenir les coefficients du modèle
+coefficients = lasso.coef_
+print("Coefficients:", coefficients)
+
+# Identifier les variables conservées (coefficients non nuls)
+selected_features = X.columns[coefficients != 0]
+print("Variables conservées:", selected_features)
+
+# Sélection des données basée sur les caractéristiques choisies
+X_selected = X[selected_features]
+
+# Séparation des données en ensembles d'entraînement et de test (après sélection des caractéristiques)
+X_train_sel, X_test_sel, y_train, y_test = train_test_split(X_selected, y, test_size=0.2, random_state=42)
+
+# Configuration du modèle de krigeage (Gaussian Process Regressor)
+kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
+gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, random_state=42)
+
+# Pipeline pour standardiser les données et appliquer le krigeage
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('gpr', gpr)
+])
+
+# Entraînement du modèle avec les caractéristiques sélectionnées
+pipeline.fit(X_train_sel, y_train)
+
+# Évaluation du modèle
+score_sel = pipeline.score(X_test_sel, y_test)
+print("Score du modèle avec sélection de caractéristiques:", score_sel)
+
+# Prédiction sur l'ensemble de test (avec caractéristiques sélectionnées)
+y_pred_sel = pipeline.predict(X_test_sel)
+
+# Calcul de l'erreur absolue
+errors_sel = np.abs(y_test - y_pred_sel)
+
+# Affichage des prédictions vs valeurs réelles (avec caractéristiques sélectionnées)
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.scatter(y_test, y_pred_sel, alpha=0.5)
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'k--', lw=2)  # Ligne de référence parfaite
+plt.xlabel('Valeurs Réelles')
+plt.ylabel('Prédictions')
+plt.title('Valeurs Réelles vs Prédictions (Avec Sélection)')
+
+# Affichage de l'erreur de prédiction (avec caractéristiques sélectionnées)
+plt.subplot(1, 2, 2)
+plt.scatter(y_test, errors_sel, alpha=0.5)
+plt.xlabel('Valeurs Réelles')
+plt.ylabel('Erreur Absolue')
+plt.title('Erreur de Prédiction (Avec Sélection)')
+plt.show()
+
+
+```
+la performance du model est reduite mais on reconnait les variables selectionnées
