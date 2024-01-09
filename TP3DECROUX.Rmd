@@ -1,0 +1,100 @@
+---
+title: "TP3 Krigeage - Challenge 2023-2024"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Ce TP fera l’objet d’un compte-rendu par groupe de 4 personnes environ,
+sous forme de Rmd + version pdf ou html. Ce compte-rendu servira à l’évaluation. Il est à remettre sur Campus (au lien de rendu TP) avant le 05 janvier 2024 à 23h59.
+A titre indicatif, le temps à consacrer à ce TP hors cours est de deux à quatre heures par personne.
+
+# Question 1. Vos noms
+
+Insérer ci-après le nom de chaque personne du groupe. Remplacer les noms ci-après, Nom en majuscule (=family name, UPPER CASE), Prénom en minuscule (first name, lower case).
+
+```{r}
+#1. DURAND Victor
+#2. DUPONT Annette
+#3. DUCHEMIN Pierre
+#4. DULAC Isis
+```
+
+L'ordre n'a pas d'importance, mais la personne en position 1 sera celle qui remettra le TP sur Campus. Merci de n'opérer qu'une seule remise par groupe! Merci de nommer vos fichiers en faisant apparaître le premier nom, par exemple ici: `TPXXX_GroupeDURAND.Rmd`, `TPXXX_GroupeDURAND.html`
+
+ATTENTION! seul les noms inscrits dans le documents seront utilisés, *aucun ajout a posteriori ne sera accepté*. Vérifiez bien la présence de tous les membres avant la remise.
+
+Merci de remplir le champs suivant: Nous certifions que notre groupe ne comportait que les personnes dont les noms sont indiqués ci-dessus, et qu'aucune personne n'a été oubliée, soit un total de:
+```{r}
+# quatre personnes (4)
+# Nous nous engageons à ne pas réclamer l'ajout d'une autre personne après la remise du TP
+```
+
+# Question 2. Votre prédiction
+
+Vous trouverez dans le répertoire de Campus un fichier intitulé "defi_observations.csv", il comporte des observations pour 7 variables X1, ..., X7, et une variable à prédire Y.
+
+Vous trouverez également dans le répertoire du cours un fichier intitulé "defi_apredire.csv" comportant des valeurs pour les 7 variables X1, ..., X7, et où il faudra prédire Y.
+
+* Remettre vos prédictions dans un fichier csv comportant les 7 variables X1, ..., X7, et la colonne Y prédite. Votre fichier s'intitulera "DefiGroupeXXX" où vous remplacerez le suffixe XXX par le nom de la personne indiquée en position 1 à la question 1, celle qui remettra le TP sur Campus.
+Pour l'exemple ci-dessus le nom du fichier serait "DefiGroupeDURAND.csv". Merci de nommer les variables X1, ..., X7 et Y pour la colonne prédite.
+
+* Le programme à l'origine de vos prédictions sera initulé "programmeDefiGroupeXXX" (en remplaçant XXX...). Il est attendu un programme sour format Rmd+ sortie Html ou pdf correspondante (bouton Knit, ou bien Python+Jupyter Notebook avec sortie html ou pdf).
+
+La contrainte: la prédiction doit se faire au moyen du Krigeage (eh oui, c'est un TP de Krigeage), mais vous pouvez utiliser des éléments de régression aussi (cf. Krigeage universel).
+
+ATTENTION! il vous faudra faire attention à bien utiliser une graine pour votre générateur aéatoire, si vous en utilisez un, p.ex `set.seed(12345)` de façon à ce que vos résultats soit reproductibles. D'une exécution à l'autre, votre programme doit proposer LA MEME prédiction!
+
+Vérifiez bien que votre fichier "DefiGroupeXXX.csv" comporte bien le bon nombre de lignes, et des abscisses dans le bon ordre!
+
+Veillez à remettre impérativement ces trois fichiers:
+
+* Le fichier CSV DefiGroupeXXX.csv
+* Un notebook Rmd (ou jupyter)
+* la sortie html ou pdf correspondante (bouton knit) faisant tourner votre programme
+
+```{r}
+set.seed(12345)
+```
+
+Voici un exemple pour l'import et l'export:
+
+```{r}
+# ce qui est donné:
+
+# lecture: Observations contient les X et les Y correspondants
+Observations = read.csv("defi_observations.csv", header = TRUE)
+
+# lecture: Apredire ne contient que des X, il faut prédire les Y
+Apredire = read.csv("defi_apredire.csv", header = TRUE)
+
+# Votre prédiction; faites mieux, hein ;-)
+Y = Apredire$X1 + mean(Observations$Y)
+# votre Y prédit ici X1 + la moyenne des Y, c'est très mauvais!
+
+# Votre exportation
+# On concatène d'abord les X avec le Y prédit à l'aide de cbind
+MonFichierSoumis =  cbind(Apredire, Y)
+
+# puis on exporte
+MonNomDeFichier = "DefiGroupeDURAND.csv" # nom de fichier à adapter hein!!!
+write.csv(MonFichierSoumis, MonNomDeFichier, row.names = FALSE)
+
+#on vérifie que c'est bien lisible
+LectureDeMonFichier = read.csv(MonNomDeFichier, header = TRUE)
+
+#on fait des vérifications élémentaires, bon nombre de lignes, de colonnes, etc.
+#on ne doit voir apparaître que des TRUE, sinon ce n'est pas bon!
+message(nrow(LectureDeMonFichier) == 150, ": bon nombre de lignes")
+message(ncol(LectureDeMonFichier) == 8, ": bon nombre de colonnes")
+message(abs(LectureDeMonFichier[37,3]-Apredire[37,3])<1e-6, ": X3 semble ok pour la ligne 37")
+message(sum(colnames(LectureDeMonFichier)==c("X1", "X2", "X3", "X4", "X5", "X6", "X7", "Y"))== 8, ": les colonnes sont bien nommées")
+```
+
+Voilà, c'est à vous, vous n'avez plus qu'à faire vos prédictions! en remplaçant la ligne `Y = Apredire$X1 + mean(Observations$Y)` bien sûr!
+
+Bon courage!
